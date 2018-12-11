@@ -1,0 +1,4 @@
+= .NET Interview Assignments
+
+* link:Assignment1-IdentityService.adoc[Assignment 1 - Identity Service]
+* link:Assignment2-StreamProcessingService.adoc[Assignment 2 - Stream Processing Service]
