@@ -1,6 +1,9 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
+using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 
 namespace StreamProcessingService
@@ -13,8 +16,7 @@ namespace StreamProcessingService
             int dataStreamsItemsCount = 0;
             foreach (var stream in dataStreams)
             {
-                int streamItemsCounter = 0;
-                for (; ; streamItemsCounter++)
+                for (int streamItemsCounter = 0;  ; streamItemsCounter++)
                 {
                     try
                     {
@@ -22,16 +24,14 @@ namespace StreamProcessingService
                     }
                     catch (ArgumentOutOfRangeException e)
                     {
-                        streamItemsCounter = streamItemsCounter - 1;
-                    }
-
-                    finally
-                    {
                         dataStreamsItemsCount = dataStreamsItemsCount + streamItemsCounter;
+                        break;
                     }
                 }
             }
-            return (dataStreamsSum / dataStreamsItemsCount);
+            double dataStreamsAvg = dataStreamsSum / dataStreamsItemsCount;
+
+            return dataStreamsAvg;
         }
 
         public double CalculateAverage<T>(IList<T> data, int parallelismDegree, Func<T, double> valueExtractor)
@@ -39,9 +39,53 @@ namespace StreamProcessingService
             throw new NotImplementedException();
         }
 
-        public Task<double> CalculateAverageAsync(IEnumerable<Stream> dataStreams)
+        public async Task<double> CalculateAverageAsync(IEnumerable<Stream> dataStreams)
         {
-            throw new NotImplementedException();
+            UTF8Encoding utf8 = new UTF8Encoding();
+            // Suppose we can fit at least few lines into the RAM
+            int RAMupperBoundBytes = 8;
+            byte[] buffer = new byte[RAMupperBoundBytes];
+            List<double> extractedNumbers = new List<double>();
+            foreach (var stream in dataStreams)
+            {
+                int relevantStreamPosition = 0;
+                while (await stream.ReadAsync(buffer, 0, RAMupperBoundBytes) != 0)
+                {
+                    string decodedString = utf8.GetString(buffer);
+                    if(decodedString.IndexOf("\n") != -1)
+                    {
+                        decodedString = decodedString.Substring(0, decodedString.LastIndexOf("\n") + 1);
+                    } else
+                    {
+                        if (decodedString.IndexOf(";") != -1)
+                        {
+                            decodedString = decodedString.Substring(0, decodedString.LastIndexOf(";") + 1 );
+                        }
+                    }
+                    relevantStreamPosition = relevantStreamPosition + utf8.GetByteCount(decodedString);
+                    stream.Position = relevantStreamPosition;
+                    string[] lines = decodedString.Split(new[] { "\n" }, StringSplitOptions.None);
+                    foreach (string line in lines)
+                    {
+                        string trim = Regex.Replace(line, @"s", "");
+                        string[] encodedValues = trim.Split(new[] { ";" }, StringSplitOptions.None);
+                        foreach (string encodedValue in encodedValues)
+                        {
+                            try
+                            {
+                                extractedNumbers.Add(double.Parse(encodedValue, System.Globalization.CultureInfo.InvariantCulture));
+                            }
+                            catch (FormatException e)
+                            {
+                                //Do nothing. It is not a number, so do not add into collection of numbers.
+                            }
+                        }
+                    }
+                    buffer = new byte[RAMupperBoundBytes];
+                }
+            }
+            //Console.WriteLine(string.Join(";", extractedNumbers));
+            return extractedNumbers.Average();
         }
 
         public IEnumerable<double> JoinAndSort(Stream stream1, Stream stream2)

@@ -8,9 +8,10 @@ namespace StreamProcessingService
         {
             // Todo:
 
-            return new TApeltauerStreamService();
+            dynamic tapeltauerStreamServiceObj = new TApeltauerStreamService();
+            return tapeltauerStreamServiceObj;
 
-            throw new NotImplementedException();
+            //throw new NotImplementedException();
         }
     }
 }
